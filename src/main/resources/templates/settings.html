@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>설정 관리 - 포장 자동화</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        .sidebar { min-height: 100vh; background: #f8f9fa; border-right: 1px solid #dee2e6; }
+        .rule-table input, .rule-table select { border: none; background: transparent; width: 100%; text-align: center; }
+        .rule-table input:focus, .rule-table select:focus { outline: 2px solid #86b7fe; background: white; }
+        .card-header { font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark bg-dark px-3">
+    <a class="navbar-brand" href="/">📦 포장 자동화</a>
+    <div>
+        <a href="/" class="btn btn-outline-light btn-sm me-2">배송 정리(메인)</a>
+        
+        <a href="/settings" class="btn btn-outline-light btn-sm me-2">설정 관리</a>
+        
+        <a href="/sales" class="btn btn-warning btn-sm fw-bold">판매량 통계 📊</a>
+    </div>
+</nav>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-3 col-lg-2 sidebar p-3">
+            <h5 class="mb-3">플랫폼 목록</h5>
+            <div class="list-group" id="platformList"></div>
+            <button class="btn btn-success w-100 mt-3" onclick="createNew()">+ 새 플랫폼 추가</button>
+        </div>
+
+        <div class="col-md-9 col-lg-10 p-4">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h3 id="formTitle">설정 편집</h3>
+                <div>
+                    <button class="btn btn-danger me-2" onclick="deletePlatform()" id="btnDelete" style="display:none;">삭제</button>
+                    <button class="btn btn-primary" onclick="savePlatform()">저장하기 💾</button>
+                </div>
+            </div>
+
+            <form id="configForm">
+                <div class="card mb-4">
+                    <div class="card-header bg-secondary text-white">1. 기본 정보</div>
+                    <div class="card-body row">
+                        <div class="col-md-4 mb-3">
+                            <label>플랫폼 이름 (필수)</label>
+                            <input type="text" class="form-control" id="platformName" placeholder="예: NAVER">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label>엑셀 비밀번호</label>
+                            <input type="text" class="form-control" id="excelPassword" placeholder="없으면 비움">
+                        </div>
+                        <div class="col-md-4 mb-3">
+    						<label>파일명 접두어</label>
+    						<input type="text" class="form-control" id="filenamePrefix" placeholder="예: 1.디디랩배송정리엑셀">
+						</div>
+                        <div class="col-md-4 mb-3">
+                            <label>헤더 위치 (행 번호, 1부터)</label>
+                            <input type="number" class="form-control" id="headerRowIndex" value="1">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mb-4">
+                    <div class="card-header bg-info text-white">2. 컬럼 매핑 (엑셀 헤더명 입력)</div>
+                    <div class="card-body row">
+                        <div class="col-md-3 mb-2"><label>주문번호</label><input type="text" class="form-control" id="col_orderNo"></div>
+                        <div class="col-md-3 mb-2"><label>수취인명</label><input type="text" class="form-control" id="col_receiver"></div>
+                        <div class="col-md-3 mb-2"><label>수량</label><input type="text" class="form-control" id="col_qty"></div>
+                        
+                        <div class="col-md-3 mb-2">
+                            <label class="fw-bold text-primary">상품명 후보 (쉼표구분)</label>
+                            <input type="text" class="form-control" id="col_productName" placeholder="예: 옵션정보,판매자 내부코드1,상품명">
+                        </div>
+                        <div class="col-md-3 mb-2"><label>배송메시지</label><input type="text" class="form-control" id="col_message"></div>
+                        <div class="col-md-3 mb-2"><label>배송지(주소)</label><input type="text" class="form-control" id="col_address"></div>
+
+                        <div class="col-md-3 mb-2"><label>연락처1</label><input type="text" class="form-control" id="col_contact1"></div>
+                        <div class="col-md-3 mb-2"><label class="fw-bold text-danger">주문일자</label><input type="text" class="form-control" id="col_orderDate" placeholder="예: 결제일, 주문일"></div>
+                    </div>
+                </div>
+
+                <div class="card mb-4">
+                    <div class="card-header bg-warning text-dark d-flex justify-content-between">
+                        <span>3. 상품 규칙 (이름 변경 / 수량 합치기 / 색상)</span>
+                        <button type="button" class="btn btn-sm btn-light" onclick="addProductRule()">+ 추가</button>
+                    </div>
+                    <div class="card-body p-0">
+                        <table class="table table-bordered mb-0 rule-table">
+                            <thead>
+                                <tr>
+                                    <th>포함 키워드 (콤마 구분)</th>
+                                    <th width="150">최종 상품명</th>
+                                    <th width="80">우선순위</th>
+                                    <th width="100">수량그룹명</th>
+                                    <th width="80">색상</th>
+                                     <th width="80">증정규칙</th>
+                                    <th width=150>단가(원)</th>
+                                    <th width="50">삭제</th>
+                                </tr>
+                            </thead>
+                            <tbody id="productRuleBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="card mb-4">
+                    <div class="card-header bg-success text-white d-flex justify-content-between">
+                        <span>4. 증정 규칙 (상품 N개당 1개)</span>
+                        <button type="button" class="btn btn-sm btn-light" onclick="addGiveawayRule()">+ 추가</button>
+                    </div>
+                    <div class="card-body p-0">
+                        <table class="table table-bordered mb-0 rule-table">
+                            <thead>
+                                <tr>
+                                    <th width="100">증정규칙</th>
+                                    <th width="150">조건(N)개마다</th>
+                                    <th width="150">증정(M)개</th>
+                                    <th width="150">증정품 이름</th>
+                                    <th width="50">삭제</th>
+                                </tr>
+                            </thead>
+                            <tbody id="giveawayRuleBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="card mb-4">
+                    <div class="card-header bg-primary text-white d-flex justify-content-between">
+                        <span>5. 금액별 사은품 (총 주문금액 기준)</span>
+                        <button type="button" class="btn btn-sm btn-light" onclick="addPriceGiftRule()">+ 추가</button>
+                    </div>
+                    <div class="card-body p-0">
+                        <table class="table table-bordered mb-0 rule-table">
+                            <thead>
+                                <tr>
+                                    <th>최소 금액 (원)</th>
+                                    <th>최대 금액 (원)</th>
+                                    <th>사은품 이름</th>
+                                    <th width="50">삭제</th>
+                                </tr>
+                            </thead>
+                            <tbody id="priceGiftRuleBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", loadPlatformList);
+
+    async function loadPlatformList() {
+        const res = await fetch('/api/platform/list');
+        const list = await res.json();
+        const container = document.getElementById('platformList');
+        container.innerHTML = '';
+        list.forEach(p => {
+            const btn = document.createElement('button');
+            btn.className = 'list-group-item list-group-item-action';
+            btn.innerText = p.name;
+            btn.onclick = () => loadDetail(p.name);
+            container.appendChild(btn);
+        });
+    }
+
+ // settings.html 내의 loadDetail 함수를 이 내용으로 교체하세요
+    async function loadDetail(name) {
+        // 1. 한글 이름이 포함된 경우를 대비해 안전하게 인코딩하여 호출합니다.
+        const res = await fetch('/api/platform/' + encodeURIComponent(name));
+        const data = await res.json();
+        
+        // 2. 만약 서버에서 데이터가 배열([]) 형태로 날아온다면 첫 번째 항목을 선택합니다.
+        const p = Array.isArray(data) ? data[0] : data;
+
+        if (!p) return alert("데이터를 불러오지 못했습니다.");
+
+        // 3. 기본 정보 입력 (id와 일치 확인)
+        document.getElementById('platformName').value = p.name || '';
+        // ★ 파일명 접두어 (아래에서 HTML에 칸을 만드셔야 합니다)
+        if(document.getElementById('filenamePrefix')) {
+            document.getElementById('filenamePrefix').value = p.filenamePrefix || '';
+        }
+        document.getElementById('excelPassword').value = p.excelPassword || '';
+        document.getElementById('headerRowIndex').value = (p.headerRowIndex || 0) + 1;
+
+        // 4. 컬럼 매핑 정보 (Map 구조 처리)
+        const cm = p.columnMapping || {};
+        const cols = ['orderNo', 'receiver', 'qty', 'productName', 'message', 'address', 'contact1','orderDate'];
+        cols.forEach(k => {
+            const input = document.getElementById('col_' + k);
+            if (input) input.value = cm[k] || '';
+        });
+
+        // 5. 각 규칙 테이블 초기화 후 데이터 채우기
+        const p_body = document.getElementById('productRuleBody'); p_body.innerHTML = '';
+        (p.productRules || []).forEach(r => addProductRule(r));
+
+        const g_body = document.getElementById('giveawayRuleBody'); g_body.innerHTML = '';
+        (p.giveawayRules || []).forEach(r => addGiveawayRule(r));
+
+        const pr_body = document.getElementById('priceGiftRuleBody'); pr_body.innerHTML = '';
+        (p.priceGiftRules || []).forEach(r => addPriceGiftRule(r)); 
+
+        // 삭제 버튼 활성화
+        document.getElementById('btnDelete').style.display = 'inline-block';
+    }
+
+    function createNew() {
+        document.getElementById('configForm').reset();
+        document.getElementById('productRuleBody').innerHTML = '';
+        document.getElementById('giveawayRuleBody').innerHTML = '';
+        document.getElementById('priceGiftRuleBody').innerHTML = '';
+        document.getElementById('btnDelete').style.display = 'none';
+        document.getElementById('platformName').focus();
+    }
+
+    // ★ 상품 규칙 행 추가 (색상 포함)
+    function addProductRule(data = {}) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+        	<td><input type="text" class="p-oname" value="${data.targetProductName || ''}" placeholder="예: 에프씨원,6kg,사은품"></td>
+            <td><input type="text" class="p-tname" value="${data.finalProductName || ''}"></td> 
+            <td><input type="number" class="p-prio" value="${data.priority || 0}"></td>
+            <td><input type="text" class="p-gid" value="${data.qtyGroupId || ''}"></td>
+            <td><input type="text" class="p-color" value="${data.highlightColor || ''}" placeholder="RED"></td>
+            <td><input type="text" class="p-rid" value="${data.giveawayRuleId || ''}"></td>
+            <td><input type="number" class="p-price" value="${data.price || 0}" placeholder="예: 1000"></td>
+            <td class="text-center"><button type="button" class="btn-close" onclick="this.closest('tr').remove()"></button></td>
+        `;
+        document.getElementById('productRuleBody').appendChild(tr);
+    }
+
+    function addGiveawayRule(data = {}) {
+        const tr = document.createElement('tr');
+        const type = data.conditionType || 'EVERY_N';
+        tr.innerHTML = `
+            <td><input type="text" class="g-rid" value="${data.ruleId || ''}"></td>
+			<td><input type="number" class="g-val" value="${data.conditionValue || 1}"></td>        
+            <td><input type="number" class="g-gqty" value="${data.giftQty || 1}"></td>
+            <td><input type="text" class="g-name" value="${data.giftName || ''}"></td>
+            <td class="text-center"><button type="button" class="btn-close" onclick="this.closest('tr').remove()"></button></td>
+        `;
+        document.getElementById('giveawayRuleBody').appendChild(tr);
+    }
+
+    function addPriceGiftRule(data = {}) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><input type="number" class="pr-min" value="${data.minAmount || 0}"></td>
+            <td><input type="number" class="pr-max" value="${data.maxAmount || 9999999}"></td>
+            <td><input type="text" class="pr-name" value="${data.giftName || ''}"></td>
+            <td class="text-center"><button type="button" class="btn-close" onclick="this.closest('tr').remove()"></button></td>
+        `;
+        document.getElementById('priceGiftRuleBody').appendChild(tr);
+    }
+
+    async function savePlatform() {
+        const name = document.getElementById('platformName').value;
+        if(!name) return alert("플랫폼 이름은 필수입니다!");
+
+        const dto = {
+            name: name,
+            filenamePrefix: document.getElementById('filenamePrefix').value,
+            excelPassword: document.getElementById('excelPassword').value,
+            headerRowIndex: parseInt(document.getElementById('headerRowIndex').value) - 1,
+            columnMapping: {
+                orderNo: document.getElementById('col_orderNo').value,
+                receiver: document.getElementById('col_receiver').value,
+                qty: document.getElementById('col_qty').value,
+                message: document.getElementById('col_message').value,
+                address: document.getElementById('col_address').value,
+                productName: document.getElementById('col_productName').value,
+                // ★ 추가된 필드들
+                contact1: document.getElementById('col_contact1').value,
+                orderDate: document.getElementById('col_orderDate').value
+            },
+            productRules: [],
+            giveawayRules: [],
+            priceGiftRules: []
+        };
+
+        // 상품 규칙 수집 (색상 포함)
+        document.querySelectorAll('#productRuleBody tr').forEach(tr => {
+            dto.productRules.push({
+                targetProductName: tr.querySelector('.p-oname').value,
+                finalProductName: tr.querySelector('.p-tname').value, 
+                priority: parseInt(tr.querySelector('.p-prio').value),
+                qtyGroupId: tr.querySelector('.p-gid').value,
+                highlightColor: tr.querySelector('.p-color').value, // ★ 색상 수집
+                giveawayRuleId: tr.querySelector('.p-rid').value,
+                price: parseInt(tr.querySelector('.p-price').value) || 0
+            });
+        });
+
+        // 증정 규칙 수집
+        document.querySelectorAll('#giveawayRuleBody tr').forEach(tr => {
+            dto.giveawayRules.push({
+                ruleId: tr.querySelector('.g-rid').value,
+                conditionValue: parseInt(tr.querySelector('.g-val').value),
+                giftQty: parseInt(tr.querySelector('.g-gqty').value) || 1,
+                giftName: tr.querySelector('.g-name').value
+            });
+        });
+
+        // 금액별 사은품 수집
+        document.querySelectorAll('#priceGiftRuleBody tr').forEach(tr => {
+            dto.priceGiftRules.push({
+                minAmount: parseInt(tr.querySelector('.pr-min').value),
+                maxAmount: parseInt(tr.querySelector('.pr-max').value),
+                giftName: tr.querySelector('.pr-name').value
+            });
+        });
+
+        const res = await fetch('/api/platform', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(dto)
+        });
+
+        if(res.ok) {
+            alert("✅ 저장되었습니다!");
+            loadPlatformList();
+        } else {
+            alert("❌ 저장 실패");
+        }
+    }
+    
+    async function deletePlatform() {
+        const name = document.getElementById('platformName').value;
+        if(confirm(name + " 설정을 삭제하시겠습니까?")) {
+            await fetch('/api/platform/' + name, { method: 'DELETE' });
+            alert("🗑️ 삭제되었습니다.");
+            createNew();
+            loadPlatformList();
+        }
+    }
+</script>
+
+</body>
+</html>
